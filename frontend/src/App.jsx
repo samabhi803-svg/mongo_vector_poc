@@ -20,7 +20,10 @@ function App() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg.content })
+        body: JSON.stringify({
+          message: userMsg.content,
+          history: messages // Send full history
+        })
       })
       const data = await response.json()
       setMessages(prev => [...prev, { role: 'agent', content: data.response }])
@@ -31,18 +34,42 @@ function App() {
   }
 
   const handleIngest = async () => {
-    if (!ingestText.trim()) return
-    try {
-      await fetch('/api/ingest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{ content: ingestText }])
-      })
-      alert('Document ingested successfully!')
-      setIngestText('')
-    } catch (error) {
-      alert('Error ingesting document.')
+    if (ingestText.trim()) {
+      // Text Ingestion
+      try {
+        await fetch('/api/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify([{ content: ingestText }])
+        })
+        alert('Text ingested successfully!')
+        setIngestText('')
+      } catch (error) {
+        alert('Error ingesting text.')
+      }
     }
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      alert(data.message);
+    } catch (error) {
+      console.error(error);
+      alert('Error uploading file.');
+    }
+    // Reset input
+    e.target.value = null;
   }
 
   return (
@@ -52,13 +79,23 @@ function App() {
       {/* Ingest Section */}
       <div className="ingest-section">
         <h3>Add to Knowledge Base</h3>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <input
-            value={ingestText}
-            onChange={e => setIngestText(e.target.value)}
-            placeholder="Type a fact to remember..."
-          />
-          <button onClick={handleIngest}>Ingest</button>
+        <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+          {/* Text Input */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <input
+              value={ingestText}
+              onChange={e => setIngestText(e.target.value)}
+              placeholder="Type a fact to remember..."
+              style={{ flex: 1 }}
+            />
+            <button onClick={handleIngest}>Ingest Text</button>
+          </div>
+
+          {/* File Upload */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '10px' }}>
+            <span style={{ color: '#aaa' }}>Or upload a file (PDF/Text):</span>
+            <input type="file" onChange={handleFileUpload} accept=".pdf,.txt" style={{ border: 'none' }} />
+          </div>
         </div>
       </div>
 

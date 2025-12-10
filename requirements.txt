@@ -6,4 +6,6 @@ uvicorn
 pydantic
 google-generativeai
 openai
-duckduckgo-search
+ddgs
+python-multipart
+pypdf
