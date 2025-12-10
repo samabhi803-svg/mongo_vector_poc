@@ -1,16 +1,18 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 import sys
 import pypdf
 import io
+import google.generativeai as genai
+from PIL import Image
 
 # Ensure backend directory is in path for imports if running from within backend
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Import vector_store. Since we are inside the package, we can use relative or absolute import
-# depending on how we run it. Let's assume we run "python backend/server.py" or "uvicorn backend.server:app"
+# Import vector_store
 try:
     from backend import vector_store
 except ImportError:
@@ -30,7 +32,7 @@ class ChatRequest(BaseModel):
 def read_root():
     return {"message": "Vector Store Agent API is running"}
 
-@app.post("/ingest")
+@app.post("/api/ingest")
 async def ingest_documents(documents: List[Document]):
     try:
         docs_data = [doc.model_dump() for doc in documents]
@@ -38,14 +40,6 @@ async def ingest_documents(documents: List[Document]):
         return {"message": f"Ingested {len(documents)} documents"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-import google.generativeai as genai
-from PIL import Image
-
-# ... (Imports remain check if PIL is needed, might need requirements update)
 
 def extract_text_from_file(file_content: bytes, filename: str, content_type: str) -> str:
     if filename.lower().endswith('.pdf'):
@@ -65,9 +59,9 @@ def extract_text_from_file(file_content: bytes, filename: str, content_type: str
             if not os.getenv("GOOGLE_API_KEY"):
                 return "[Image Upload Skipped] GOOGLE_API_KEY not found."
             
-            # Configure GenAI if not already (it might be in agent, but safe to re-config or check)
+            # Configure GenAI
             genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-            model = genai.GenerativeModel('gemini-2.0-flash') # Use Vision compatible model
+            model = genai.GenerativeModel('gemini-2.0-flash')
             
             # Load image from bytes
             image_part = {"mime_type": content_type, "data": file_content}
@@ -84,9 +78,16 @@ def extract_text_from_file(file_content: bytes, filename: str, content_type: str
         # Assume text
         return file_content.decode('utf-8', errors='ignore')
 
-# ... (chunk_text remains same)
+def chunk_text(text, chunk_size=500, overlap=50):
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        start += chunk_size - overlap
+    return chunks
 
-@app.post("/upload")
+@app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
         content = await file.read()
@@ -107,7 +108,7 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/search")
+@app.post("/api/search")
 def search(query: str):
     results = vector_store.vector_search(query)
     return {"results": results}
@@ -118,7 +119,7 @@ except ImportError:
     from agent import RAGAgent
 agent = RAGAgent(vector_store)
 
-@app.post("/chat")
+@app.post("/api/chat")
 def chat(request: ChatRequest):
     # Save User Message
     vector_store.save_chat_message("user", request.message)
@@ -131,15 +132,22 @@ def chat(request: ChatRequest):
     
     return {"response": response_text}
 
-@app.get("/history")
+@app.get("/api/history")
 def get_history():
     return vector_store.get_chat_history()
 
-@app.delete("/history")
+@app.delete("/api/history")
 def clear_history():
     vector_store.clear_chat_history()
     return {"message": "Chat history cleared."}
 
+# Mount Static Files (Frontend)
+# Ensure this is AFTER API routes so they take precedence
+frontend_dist_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
+if os.path.exists(frontend_dist_path):
+    app.mount("/", StaticFiles(directory=frontend_dist_path, html=True), name="static")
+else:
+    print(f"Warning: Frontend dist not found at {frontend_dist_path}. API only mode.")
 
 if __name__ == "__main__":
     import uvicorn
