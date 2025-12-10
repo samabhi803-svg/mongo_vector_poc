@@ -97,3 +97,26 @@ def vector_search(query_text, limit=5):
         print("Ensure you have created a Vector Search index named 'vector_index' on the 'embedding' field on MongoDB Atlas.")
         return []
 
+
+def get_history_collection():
+    if not MONGO_URI:
+         raise ValueError("Please set a valid MONGO_URI in .env")
+    client = pymongo.MongoClient(MONGO_URI)
+    db = client[DB_NAME]
+    return db["chat_history"]
+
+def get_chat_history(limit=50):
+    collection = get_history_collection()
+    cursor = collection.find({}, {'_id': 0}).sort('_id', 1).limit(limit)
+    return list(cursor)
+
+def save_chat_message(role, content):
+    collection = get_history_collection()
+    collection.insert_one({
+        "role": role,
+        "content": content
+    })
+
+def clear_chat_history():
+    collection = get_history_collection()
+    collection.delete_many({})

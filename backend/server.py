@@ -42,7 +42,12 @@ async def ingest_documents(documents: List[Document]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def extract_text_from_file(file_content: bytes, filename: str) -> str:
+import google.generativeai as genai
+from PIL import Image
+
+# ... (Imports remain check if PIL is needed, might need requirements update)
+
+def extract_text_from_file(file_content: bytes, filename: str, content_type: str) -> str:
     if filename.lower().endswith('.pdf'):
         try:
             pdf_reader = pypdf.PdfReader(io.BytesIO(file_content))
@@ -52,27 +57,50 @@ def extract_text_from_file(file_content: bytes, filename: str) -> str:
             return text
         except Exception as e:
             raise ValueError(f"Error parsing PDF: {str(e)}")
+    
+    elif content_type.startswith("image/"):
+        # Use Gemini to caption the image
+        try:
+            print(f"Generating caption for image: {filename}")
+            if not os.getenv("GOOGLE_API_KEY"):
+                return "[Image Upload Skipped] GOOGLE_API_KEY not found."
+            
+            # Configure GenAI if not already (it might be in agent, but safe to re-config or check)
+            genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+            model = genai.GenerativeModel('gemini-2.0-flash') # Use Vision compatible model
+            
+            # Load image from bytes
+            image_part = {"mime_type": content_type, "data": file_content}
+            
+            prompt = "Describe this image in extreme detail for retrieval purposes. Include specific objects, text, data points, colors, and context. Start with 'Image Description:'"
+            
+            response = model.generate_content([prompt, image_part])
+            return response.text
+        except Exception as e:
+            print(f"Error captioning image: {e}")
+            return f"[Error processing image {filename}: {str(e)}]"
+
     else:
         # Assume text
         return file_content.decode('utf-8', errors='ignore')
 
-def chunk_text(text: str, chunk_size: int = 500) -> List[str]:
-    # Simple character splitter
-    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+# ... (chunk_text remains same)
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     try:
         content = await file.read()
-        text = extract_text_from_file(content, file.filename)
+        # Pass content_type
+        text = extract_text_from_file(content, file.filename, file.content_type)
         
         if not text.strip():
-             return {"message": "No text extracted from file."}
-
+             return {"message": "No content extracted from file."}
+        
+        # If it was an image, the 'text' is the caption.
         chunks = chunk_text(text)
         
         # Prepare for ingestion
-        docs_data = [{"content": chunk, "metadata": {"source": file.filename}} for chunk in chunks]
+        docs_data = [{"content": chunk, "metadata": {"source": file.filename, "type": "image" if file.content_type.startswith("image/") else "text"}} for chunk in chunks]
         vector_store.ingest_documents(docs_data)
         
         return {"message": f"Successfully uploaded '{file.filename}' and ingested {len(chunks)} chunks."}
@@ -92,8 +120,25 @@ agent = RAGAgent(vector_store)
 
 @app.post("/chat")
 def chat(request: ChatRequest):
-    response = agent.ask(request.message, history=request.history)
-    return {"response": response}
+    # Save User Message
+    vector_store.save_chat_message("user", request.message)
+    
+    # Get Response
+    response_text = agent.ask(request.message, history=request.history)
+    
+    # Save Agent Message
+    vector_store.save_chat_message("agent", response_text)
+    
+    return {"response": response_text}
+
+@app.get("/history")
+def get_history():
+    return vector_store.get_chat_history()
+
+@app.delete("/history")
+def clear_history():
+    vector_store.clear_chat_history()
+    return {"message": "Chat history cleared."}
 
 
 if __name__ == "__main__":

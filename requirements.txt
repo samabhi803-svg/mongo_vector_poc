@@ -9,3 +9,4 @@ openai
 ddgs
 python-multipart
 pypdf
+Pillow

@@ -1,103 +1,88 @@
-# Mongo Vector Agent
+# MongoDB Vector Agent (RAG)
 
-A Full-Stack Agentic RAG Application that combines **MongoDB Vector Search** with **Google Gemini** to answer questions using your private knowledge base, with a fallback to **Web Search** for broader knowledge.
+A full-stack **Agentic RAG Application** that combines local document knowledge with web search to answer questions intelligently.
 
 ## Features
 
--   **Agentic RAG**: Uses an LLM to reason whether to answer from the Knowledge Base or search the Web.
--   **Vector Search**: Semantic search over your documents using MongoDB Atlas Vector Search.
--   **Web Search**: Integrated DuckDuckGo search for up-to-date information.
--   **Modern UI**: React + Vite frontend with a chat interface.
--   **Robust Backend**: FastAPI server handling ingestion and agent logic.
+- **Agentic RAG**: Intelligently switches between **MongoDB Vector Search** (for internal documents) and **DuckDuckGo Web Search** (for external knowledge).
+- **Multi-Modal Support**: Upload **Images** (PNG/JPG) which are captioned by Gemini 2.0 and searchable via text.
+- **Conversation Memory**: The agent remembers previous context (e.g., "How old is he?") for natural follow-up questions.
+- **Chat Persistence**: Chat history is saved to MongoDB and restored upon page reload.
+- **Modern UI**: Built with React + Vite, featuring **Markdown Rendering** (code, tables, lists) and file upload.
+- **LLM Integration**: Uses Google's **Gemini 2.0 Flash** for fast, high-quality responses (configurable).
 
-## Architecture
+## Tech Stack
 
--   **Backend**: Python, FastAPI, `sentence-transformers`, `google-generativeai`, `pymongo`.
--   **Frontend**: React, Vite.
--   **Database**: MongoDB Atlas.
+- **Frontend**: React, Vite, Tailwind CSS, React Markdown
+- **Backend**: FastAPI, Python, Pillow
+- **Database**: MongoDB Atlas (Vector Search & Chat History)
+- **AI/LLM**: Google Gemini API (`gemini-2.0-flash`)
+- **Search**: `ddgs` (DuckDuckGo Search)
 
-## Prerequisites
+## Structure
 
+```
+mongo_vector_poc/
+├── backend/
+│   ├── server.py       # FastAPI Backend & Endpoints
+│   ├── agent.py        # Agentic Logic & Memory Contextualization
+│   ├── vector_store.py # MongoDB Vector Search Logic
+│   └── tools.py        # Web Search Tool (DuckDuckGo)
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx     # Chat & Upload UI
+│   │   └── main.jsx    # React Entry Point
+│   └── vite.config.js  # Vite Proxy Configuration
+└── README.md
+```
+
+## Setup Instructions
+
+### 1. Prerequisites
 -   Python 3.8+
 -   Node.js & npm
--   MongoDB Atlas Cluster (M0 Sandbox is fine)
--   Google Gemini API Key (for Agent reasoning)
+-   MongoDB Atlas Cluster (Free Tier)
+-   Google Gemini API Key
 
-## Setup
+### 2. Backend Setup
+1.  Create a virtual environment:
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # Windows: venv\Scripts\activate
+    ```
+2.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  Configure Environment (`.env`):
+    ```ini
+    MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/?retryWrites=true&w=majority
+    DB_NAME=vector_poc_db
+    COLLECTION_NAME=documents
+    GOOGLE_API_KEY=your_gemini_api_key
+    ```
+4.  Run Server:
+    ```bash
+    python backend/server.py
+    ```
 
-### 1. Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-MONGO_URI=your_mongodb_atlas_uri
-DB_NAME=vector_poc_db
-COLLECTION_NAME=documents
-GOOGLE_API_KEY=your_gemini_api_key
-```
-
-### 2. MongoDB Configuration (Crucial)
-
-You must create a Vector Search Index on your Atlas Collection (`vector_poc_db.documents`).
-**Index Name:** `vector_index`
-**JSON Configuration:**
-```json
-{
-  "fields": [
-    {
-      "numDimensions": 384,
-      "path": "embedding",
-      "similarity": "cosine",
-      "type": "vector"
-    }
-  ]
-}
-```
-
-### 3. Backend Setup
-
-```bash
-# Create virtual env
-python -m venv venv
-
-# Activate
-# Windows:
-.\venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 4. Frontend Setup
-
-```bash
-cd frontend
-npm install
-```
-
-## Running the Application
-
-You need two terminals.
-
-**Terminal 1: Backend**
-```bash
-# From root directory
-venv\Scripts\python backend/server.py
-```
-*Server running at http://localhost:8000*
-
-**Terminal 2: Frontend**
-```bash
-cd frontend
-npm run dev
-```
-*UI running at http://localhost:5173*
+### 3. Frontend Setup
+1.  Navigate to frontend:
+    ```bash
+    cd frontend
+    ```
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+3.  Run Dev Server:
+    ```bash
+    npm run dev
+    ```
 
 ## Usage
 
-1.  **Ingestion**: Use the top bar in the UI to type a fact (e.g., "Project X code is Blue") and click **Ingest**. This saves it to MongoDB.
-2.  **Chat**: Ask questions in the chat box.
-    -   *RAG*: "What is the Project X code?" -> Agent queries MongoDB.
-    -   *Web*: "What is the stock price of Apple?" -> Agent searches the Web.
+1.  Open **http://localhost:5173**.
+2.  **Upload**: Drag & Drop a PDF to add knowledge.
+3.  **Chat**: Ask questions. The agent will check your docs first, then the web.
+4.  **Follow-up**: Ask conversational follow-ups like "Tell me more".
