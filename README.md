@@ -1,92 +1,103 @@
-# MongoDB Vector Store PoC
+# Mongo Vector Agent
 
-This project is a Proof of Concept (PoC) demonstrating how to store and query vector embeddings using MongoDB and Python. It utilizes the `sentence-transformers` library to generate embeddings and MongoDB Atlas Vector Search for semantic similarity searches.
+A Full-Stack Agentic RAG Application that combines **MongoDB Vector Search** with **Google Gemini** to answer questions using your private knowledge base, with a fallback to **Web Search** for broader knowledge.
+
+## Features
+
+-   **Agentic RAG**: Uses an LLM to reason whether to answer from the Knowledge Base or search the Web.
+-   **Vector Search**: Semantic search over your documents using MongoDB Atlas Vector Search.
+-   **Web Search**: Integrated DuckDuckGo search for up-to-date information.
+-   **Modern UI**: React + Vite frontend with a chat interface.
+-   **Robust Backend**: FastAPI server handling ingestion and agent logic.
+
+## Architecture
+
+-   **Backend**: Python, FastAPI, `sentence-transformers`, `google-generativeai`, `pymongo`.
+-   **Frontend**: React, Vite.
+-   **Database**: MongoDB Atlas.
 
 ## Prerequisites
 
-- Python 3.8+
-- A MongoDB Atlas account (M0 Sandbox is sufficient).
-- A MongoDB Atlas Cluster deployed.
+-   Python 3.8+
+-   Node.js & npm
+-   MongoDB Atlas Cluster (M0 Sandbox is fine)
+-   Google Gemini API Key (for Agent reasoning)
 
-## Setup and Installation
+## Setup
 
-1.  **Clone the repository** (if applicable) or navigate to the project directory.
+### 1. Environment Variables
 
-2.  **Create a virtual environment**:
-    ```bash
-    python -m venv venv
-    ```
+Create a `.env` file in the root directory:
 
-3.  **Activate the virtual environment**:
-    - **Windows**:
-      ```bash
-      .\venv\Scripts\activate
-      ```
-    - **macOS/Linux**:
-      ```bash
-      source venv/bin/activate
-      ```
+```env
+MONGO_URI=your_mongodb_atlas_uri
+DB_NAME=vector_poc_db
+COLLECTION_NAME=documents
+GOOGLE_API_KEY=your_gemini_api_key
+```
 
-4.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+### 2. MongoDB Configuration (Crucial)
 
-## Configuration
-
-1.  **Environment Variables**:
-    Create a `.env` file in the root directory of the project. A template is provided below:
-
-    ```env
-    MONGO_URI=your_mongodb_connection_string
-    DB_NAME=vector_poc_db
-    COLLECTION_NAME=documents
-    ```
-    Replace `your_mongodb_connection_string` with your actual connection string from MongoDB Atlas.
-
-2.  **MongoDB Atlas Vector Search Index (CRITICAL)**:
-    Before you can perform searches, you **MUST** create a Vector Search Index on your MongoDB Atlas collection.
-
-    - Go to your cluster in the MongoDB Atlas UI.
-    - Click on the **"Atlas Search"** tab.
-    - Click **"Create Search Index"**.
-    - Select **"JSON Editor"**.
-    - Select your Database (`vector_poc_db`) and Collection (`documents`).
-    - Name the index: `vector_index` (This name matches the code in `vector_store.py`).
-    - Paste the following JSON configuration:
-
-    ```json
+You must create a Vector Search Index on your Atlas Collection (`vector_poc_db.documents`).
+**Index Name:** `vector_index`
+**JSON Configuration:**
+```json
+{
+  "fields": [
     {
-      "fields": [
-        {
-          "numDimensions": 384,
-          "path": "embedding",
-          "similarity": "cosine",
-          "type": "vector"
-        }
-      ]
+      "numDimensions": 384,
+      "path": "embedding",
+      "similarity": "cosine",
+      "type": "vector"
     }
-    ```
-    *Note: `384` is the dimension size for the `all-MiniLM-L6-v2` model used in this project.*
+  ]
+}
+```
+
+### 3. Backend Setup
+
+```bash
+# Create virtual env
+python -m venv venv
+
+# Activate
+# Windows:
+.\venv\Scripts\activate
+# Mac/Linux:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 4. Frontend Setup
+
+```bash
+cd frontend
+npm install
+```
+
+## Running the Application
+
+You need two terminals.
+
+**Terminal 1: Backend**
+```bash
+# From root directory
+venv\Scripts\python backend/server.py
+```
+*Server running at http://localhost:8000*
+
+**Terminal 2: Frontend**
+```bash
+cd frontend
+npm run dev
+```
+*UI running at http://localhost:5173*
 
 ## Usage
 
-Run the main application:
-
-```bash
-python main.py
-```
-
-### Application Flow
-
-1.  **Configuration Check**: The app checks if it can connect to MongoDB.
-2.  **Ingestion Step**: You will be prompted to ingest sample documents.
-    - Type `y` to insert sample text data into your MongoDB collection. The app will generate embeddings for them automatically.
-3.  **Search Step**: You can enter natural language queries.
-    - Example: "programming languages for AI"
-    - The app will convert your query into a vector and find the most semantically similar documents in the database using the Atlas Vector Search index.
-
-## File Overview
-
-- `main.py`: The entry point script that orchestrates the user interaction (ingestion and search).
-- `vector_store.py`: Contains the core logic for connecting to MongoDB, generating embeddings using `sentence-transformers`, inserting documents, and executing vector search queries.
+1.  **Ingestion**: Use the top bar in the UI to type a fact (e.g., "Project X code is Blue") and click **Ingest**. This saves it to MongoDB.
+2.  **Chat**: Ask questions in the chat box.
+    -   *RAG*: "What is the Project X code?" -> Agent queries MongoDB.
+    -   *Web*: "What is the stock price of Apple?" -> Agent searches the Web.
