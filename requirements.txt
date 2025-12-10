@@ -1,4 +1,9 @@
 pymongo
 sentence-transformers
 python-dotenv
-dnspython
+fastapi
+uvicorn
+pydantic
+google-generativeai
+openai
+duckduckgo-search

@@ -4,7 +4,7 @@ from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 
 # Explicitly load .env from the same directory as this script
-env_path = os.path.join(os.path.dirname(__file__), '.env')
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 load_dotenv(env_path)
 
 MONGO_URI = os.getenv("MONGO_URI")
